@@ -1,156 +1,1314 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoView — Visor de Capturas en Vivo</title>
-    <meta name="description" content="EcoView — Monitor de capturas en tiempo real">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background-color: #00060e;
-            color: #e8f4ff;
-            font-family: system-ui, -apple-system, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-        #image-wrapper {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-        img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            transition: opacity 0.8s ease-in-out;
-            opacity: 0;
-        }
-        img.loaded {
-            opacity: 1;
-        }
-        .status {
-            position: fixed;
-            bottom: 14px;
-            left: 14px;
-            font-size: 11px;
-            color: rgba(194,240,255,.45);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-family: 'Share Tech Mono', monospace;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-        }
-        .dot {
-            width: 6px;
-            height: 6px;
-            background: #00ff9d;
-            border-radius: 50%;
-            box-shadow: 0 0 8px #00ff9d;
-            animation: pulse 1.5s infinite;
-            flex-shrink: 0;
-        }
-        .dot.err { background: #ff4d2e; box-shadow: 0 0 8px #ff4d2e; }
-        @keyframes pulse {
-            0% { opacity: 0.2; }
-            50% { opacity: 1; }
-            100% { opacity: 0.2; }
-        }
-        .brand-link {
-            position: fixed;
-            top: 14px;
-            left: 14px;
-            font-size: 13px;
-            color: rgba(0,212,255,.55);
-            text-decoration: none;
-            font-family: 'Share Tech Mono', monospace;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            transition: color .3s;
-        }
-        .brand-link:hover { color: #00d4ff; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoView — Vigilancia Urbana Inteligente con IA</title>
+<meta name="description" content="EcoView despliega cámaras inteligentes con IA que detectan contaminación urbana en tiempo real, capturan evidencia 4K y alertan a las autoridades en menos de 2 segundos.">
+<meta name="theme-color" content="#00060e">
+<!-- Open Graph -->
+<meta property="og:title" content="EcoView — Vigilancia Urbana Inteligente con IA">
+<meta property="og:description" content="Cámaras con IA que detectan basura, capturan evidencia 4K y alertan autoridades en tiempo real. 99.4% precisión. 200+ ciudades desplegadas.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_ES">
+<!-- Preconnect para rendimiento -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#00060e;--abyss:#010d1a;--deep:#031828;--navy:#052238;--steel:#083050;
+  --azure:#0a4a7a;--cobalt:#0d6abf;--electric:#1490ff;--neon:#00d4ff;--ice:#7ee8ff;
+  --frost:#c2f0ff;--white:#e8f4ff;--warn:#ff4d2e;--gold:#ffd166;--green:#00ff9d;
+  --fd:'Orbitron',monospace;--fb:'Rajdhani',sans-serif;--fm:'Share Tech Mono',monospace;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--void);color:var(--white);font-family:var(--fb);overflow-x:hidden;cursor:none;}
+
+/* CURSOR */
+#cur{position:fixed;width:8px;height:8px;background:var(--neon);border-radius:50%;pointer-events:none;z-index:99999;transform:translate(-50%,-50%);mix-blend-mode:screen;}
+#cur-ring{position:fixed;width:34px;height:34px;border:1px solid rgba(0,212,255,.45);border-radius:50%;pointer-events:none;z-index:99998;transform:translate(-50%,-50%);transition:transform .15s;}
+#cur-h,#cur-v{position:fixed;pointer-events:none;z-index:99997;background:rgba(0,212,255,.2);}
+#cur-h{width:24px;height:1px;transform:translate(-50%,-50%);}
+#cur-v{width:1px;height:24px;transform:translate(-50%,-50%);}
+
+/* CANVAS */
+#bgC{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
+
+/* ══ PRELOADER ══ */
+#pl{position:fixed;inset:0;z-index:100000;background:var(--void);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px;transition:opacity 1s,visibility 1s;}
+#pl.out{opacity:0;visibility:hidden;}
+.pl-hud{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center;}
+.pl-r{position:absolute;border-radius:50%;border:1px solid transparent;}
+.pl-r1{width:240px;height:240px;border-top-color:var(--neon);border-right-color:rgba(0,212,255,.15);animation:cw 2s linear infinite;}
+.pl-r2{width:190px;height:190px;border-bottom-color:var(--electric);border-left-color:rgba(20,144,255,.15);animation:ccw 3s linear infinite;}
+.pl-r3{width:148px;height:148px;border-top-color:rgba(0,212,255,.4);animation:cw 1.5s linear infinite;}
+@keyframes cw{to{transform:rotate(360deg)}}
+@keyframes ccw{to{transform:rotate(-360deg)}}
+.pl-bk{position:absolute;width:20px;height:20px;border-color:var(--neon);border-style:solid;}
+.pl-bk.tl{top:8px;left:8px;border-width:2px 0 0 2px;}
+.pl-bk.tr{top:8px;right:8px;border-width:2px 2px 0 0;}
+.pl-bk.bl{bottom:8px;left:8px;border-width:0 0 2px 2px;}
+.pl-bk.br{bottom:8px;right:8px;border-width:0 2px 2px 0;}
+.pl-scan{position:absolute;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,var(--neon),transparent);box-shadow:0 0 10px var(--neon);animation:plsc 2s ease-in-out infinite;}
+@keyframes plsc{0%{top:12%;opacity:0}5%{opacity:1}95%{opacity:1}100%{top:88%;opacity:0}}
+.pl-title{font-family:var(--fd);font-size:30px;font-weight:900;letter-spacing:8px;text-shadow:0 0 30px var(--neon),0 0 60px var(--electric);}
+.pl-sub{font-family:var(--fm);font-size:10px;letter-spacing:4px;color:var(--neon);animation:blk 1.2s step-end infinite;}
+@keyframes blk{50%{opacity:0}}
+.pl-bw{width:240px;}
+.pl-bt{height:2px;background:rgba(0,212,255,.1);border-radius:2px;overflow:hidden;}
+.pl-bf{height:100%;background:linear-gradient(90deg,var(--cobalt),var(--neon));animation:plld 2.4s cubic-bezier(.4,0,.2,1) forwards;box-shadow:0 0 12px var(--neon);}
+@keyframes plld{0%{width:0}60%{width:72%}100%{width:100%}}
+
+/* ══ NAV ══ */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:0 60px;height:68px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,6,14,.75);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,212,255,.06);animation:fd .8s ease 2.6s both;}
+@keyframes fd{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+.nav-logo{display:flex;align-items:center;gap:12px;font-family:var(--fd);font-weight:700;font-size:17px;letter-spacing:4px;color:var(--white);text-decoration:none;}
+/* NAV — security/bullet cam icon */
+.lc{width:40px;height:30px;position:relative;flex-shrink:0;}
+/* mount arm */
+.lc-top{position:absolute;top:0;left:50%;transform:translateX(-50%);width:5px;height:12px;background:linear-gradient(180deg,var(--neon),var(--cobalt));border-radius:2px 2px 0 0;box-shadow:0 0 6px rgba(0,212,255,.5);}
+/* horizontal bullet body */
+.lc-body{position:absolute;top:10px;left:3px;right:8px;height:11px;background:linear-gradient(90deg,var(--deep),var(--cobalt) 60%,var(--azure));border:1.5px solid var(--neon);border-radius:5px 2px 2px 5px;}
+/* front lens housing */
+.lc-lens{position:absolute;top:9px;right:0;width:14px;height:13px;border-radius:50%;background:radial-gradient(circle at 38% 38%,var(--cobalt),var(--void));border:1.5px solid var(--neon);box-shadow:0 0 8px var(--neon);animation:lg 2s ease-in-out infinite;}
+@keyframes lg{0%,100%{box-shadow:0 0 5px var(--neon)}50%{box-shadow:0 0 18px var(--neon),0 0 32px var(--electric)}}
+/* status LED on body */
+.lc-led{position:absolute;top:14px;left:9px;width:3px;height:3px;border-radius:50%;background:var(--warn);animation:blk .9s step-end infinite;box-shadow:0 0 5px var(--warn);}
+.nav-links{display:flex;gap:30px;list-style:none;align-items:center;}
+.nav-links a{font-family:var(--fb);font-weight:600;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:rgba(194,240,255,.88);transition:color .3s;position:relative;}
+.nav-links a:not(.nc):hover{color:var(--neon);}
+.nav-links a:not(.nc)::after{content:'';position:absolute;left:0;bottom:-4px;width:0;height:1px;background:var(--neon);transition:width .3s;}
+.nav-links a:not(.nc):hover::after{width:100%;}
+.nc{border:1px solid var(--neon)!important;color:var(--neon)!important;padding:7px 20px;font-family:var(--fd)!important;font-size:10px!important;font-weight:600!important;letter-spacing:3px!important;clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);transition:box-shadow .3s,background .3s!important;position:relative;overflow:hidden;}
+.nc::before{content:'';position:absolute;inset:0;background:var(--neon);opacity:0;transition:opacity .3s;}
+.nc:hover::before{opacity:.1;}
+.nc:hover{box-shadow:0 0 20px rgba(0,212,255,.3)!important;}
+.nc::after{display:none!important;}
+
+/* ══ HERO ══ */
+#hero{min-height:100vh;position:relative;display:flex;align-items:center;justify-content:center;padding:90px 60px 60px;overflow:hidden;}
+.hud-line{position:absolute;background:rgba(0,212,255,.04);pointer-events:none;}
+.hl-h1{top:20%;left:0;right:0;height:1px;} .hl-h2{top:80%;left:0;right:0;height:1px;}
+.hl-v1{top:0;bottom:0;left:14%;width:1px;} .hl-v2{top:0;bottom:0;right:14%;width:1px;}
+.hud-corner{position:absolute;width:38px;height:38px;border-color:rgba(0,212,255,.25);border-style:solid;pointer-events:none;}
+.hc-tl{top:78px;left:38px;border-width:2px 0 0 2px;} .hc-tr{top:78px;right:38px;border-width:2px 2px 0 0;}
+.hc-bl{bottom:38px;left:38px;border-width:0 0 2px 2px;} .hc-br{bottom:38px;right:38px;border-width:0 2px 2px 0;}
+.hud-tag{position:absolute;font-family:var(--fm);font-size:9px;letter-spacing:2px;color:rgba(0,212,255,.62);pointer-events:none;text-transform:uppercase;}
+.hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1fr 420px;gap:80px;align-items:center;max-width:1200px;width:100%;}
+.h-eyebrow{display:flex;align-items:center;gap:12px;font-family:var(--fm);font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--neon);margin-bottom:24px;animation:fu .8s ease 2.8s both;}
+.h-el{width:28px;height:1px;background:var(--neon);}
+.h-ed{width:4px;height:4px;border-radius:50%;background:var(--neon);animation:blk .8s step-end infinite;}
+@keyframes fu{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+.hero-title{font-family:var(--fd);font-weight:900;font-size:clamp(34px,5.5vw,74px);line-height:1.05;letter-spacing:2px;animation:fu .8s ease 3s both;}
+.hero-title .w1{display:block;color:var(--white);}
+.hero-title .w2{display:block;background:linear-gradient(90deg,var(--electric),var(--neon),var(--ice));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 20px rgba(0,212,255,.45));}
+.hero-title .w3{display:block;color:rgba(194,240,255,.78);font-size:.42em;font-family:var(--fb);font-weight:400;letter-spacing:5px;margin-top:10px;text-transform:uppercase;-webkit-text-fill-color:rgba(194,240,255,.78);}
+.hero-desc{font-size:15px;font-weight:400;line-height:1.85;color:rgba(194,240,255,.82);max-width:430px;margin-top:24px;animation:fu .8s ease 3.2s both;border-left:2px solid rgba(0,212,255,.18);padding-left:18px;}
+.hero-acts{display:flex;gap:14px;margin-top:40px;flex-wrap:wrap;animation:fu .8s ease 3.4s both;}
+.bp{background:linear-gradient(135deg,var(--cobalt),var(--neon) 250%);color:var(--void);padding:13px 34px;font-family:var(--fd);font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;text-decoration:none;clip-path:polygon(9px 0,100% 0,calc(100% - 9px) 100%,0 100%);box-shadow:0 0 28px rgba(0,212,255,.22);transition:box-shadow .3s,transform .3s;display:inline-block;}
+.bp:hover{box-shadow:0 0 48px rgba(0,212,255,.45);transform:translateY(-2px);}
+.bo{border:1px solid rgba(0,212,255,.28);color:var(--ice);padding:13px 34px;font-family:var(--fd);font-size:10px;font-weight:600;letter-spacing:3px;text-transform:uppercase;text-decoration:none;clip-path:polygon(9px 0,100% 0,calc(100% - 9px) 100%,0 100%);transition:border-color .3s,color .3s,background .3s;display:inline-block;backdrop-filter:blur(8px);}
+.bo:hover{border-color:var(--neon);color:var(--neon);background:rgba(0,212,255,.04);}
+
+/* ══ HERO CAMERA WIDGET ══ */
+.hcw{position:relative;width:420px;height:480px;animation:fu 1s ease 3.2s both;perspective:600px;}
+/* IR night-vision glow overlay on hero cam */
+.hcw-ir-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:180px;border-radius:50%;background:radial-gradient(ellipse,rgba(170,24,0,0.06),transparent 70%);pointer-events:none;animation:irGlow 2s ease-in-out infinite;}
+@keyframes irGlow{0%,100%{opacity:.4;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}}
+/* Pan range indicator arc */
+.hcw-pan-arc{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:120px;height:30px;border-bottom:1px dashed rgba(0,212,255,.25);border-radius:0 0 60px 60px;pointer-events:none;}
+.hcw-pan-dot{position:absolute;bottom:0;width:6px;height:6px;background:var(--neon);border-radius:50%;transform:translateX(-50%);box-shadow:0 0 8px var(--neon);animation:panDot 8s ease-in-out infinite;}
+@keyframes panDot{0%,100%{left:0%;bottom:2px}25%{left:50%;bottom:28px}50%{left:100%;bottom:2px}75%{left:50%;bottom:28px}}
+.orb{position:absolute;top:50%;left:50%;border-radius:50%;border:1px solid rgba(0,212,255,.1);pointer-events:none;}
+.orb1{width:340px;height:340px;margin:-170px 0 0 -170px;border-color:rgba(0,212,255,.14);animation:cw 14s linear infinite;}
+.orb2{width:405px;height:405px;margin:-202px 0 0 -202px;border-top-color:rgba(20,144,255,.28);animation:ccw 20s linear infinite;}
+.orb3{width:465px;height:465px;margin:-232px 0 0 -232px;border-right-color:rgba(0,212,255,.18);animation:cw 28s linear infinite;}
+.odot{position:absolute;width:6px;height:6px;border-radius:50%;top:-3px;left:50%;margin-left:-3px;box-shadow:0 0 10px currentColor;}
+.hcw-cam{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:280px;height:240px;animation:camhov 6s ease-in-out infinite;filter:drop-shadow(0 0 35px rgba(0,212,255,.28));}
+/* Security camera pan/tilt sweep */
+@keyframes camhov{
+  0%  {transform:translate(-50%,-50%) rotateX(3deg) rotateY(-12deg) rotateZ(0deg);}
+  20% {transform:translate(-50%,-50%) rotateX(1deg) rotateY(8deg) rotateZ(0.5deg);}
+  40% {transform:translate(-50%,-50%) rotateX(-2deg) rotateY(14deg) rotateZ(-0.5deg);}
+  60% {transform:translate(-50%,-50%) rotateX(2deg) rotateY(4deg) rotateZ(0.5deg);}
+  80% {transform:translate(-50%,-50%) rotateX(-1deg) rotateY(-8deg) rotateZ(-0.5deg);}
+  100%{transform:translate(-50%,-50%) rotateX(3deg) rotateY(-12deg) rotateZ(0deg);}
+}
+/* IR LED pulse */
+@keyframes irPulse{
+  0%,100%{opacity:.28;r:2}
+  45%    {opacity:1;r:3}
+  50%    {opacity:.7;r:2.5}
+}
+/* Motion zone highlight */
+@keyframes motionZone{
+  0%,100%{opacity:0;transform:scaleX(1) scaleY(1);}
+  20%    {opacity:1;transform:scaleX(1.04) scaleY(1.04);}
+  40%    {opacity:.7;transform:scaleX(.97) scaleY(.97);}
+  60%    {opacity:.9;transform:scaleX(1.02) scaleY(1.02);}
+  80%    {opacity:.4;transform:scaleX(1) scaleY(1);}
+}
+/* FOV sweep arc */
+@keyframes fovSweep{
+  0%,100%{opacity:.04;transform:rotate(-8deg) scaleX(.9);}
+  50%    {opacity:.12;transform:rotate(8deg) scaleX(1.1);}
+}
+/* data packet dots travelling */
+@keyframes dataDot{
+  0%  {opacity:0;transform:translateX(0);}
+  10% {opacity:1;}
+  90% {opacity:1;}
+  100%{opacity:0;transform:translateX(-60px);}
+}
+.cam-sl{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.7),var(--neon),rgba(0,212,255,.7),transparent);box-shadow:0 0 12px var(--neon);animation:slsc 3.5s ease-in-out infinite;pointer-events:none;}
+@keyframes slsc{0%{top:5%;opacity:0}6%{opacity:1}92%{opacity:1}100%{top:95%;opacity:0}}
+.det{position:absolute;border:1.5px solid var(--warn);border-radius:3px;pointer-events:none;animation:detf var(--d,4s) ease-in-out var(--dl,0s) infinite;}
+.det::before{content:var(--lbl,'DETECTADO');position:absolute;top:-15px;left:0;font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--warn);background:rgba(0,6,14,.85);padding:1px 5px;white-space:nowrap;}
+.det::after{content:var(--cf,'98.2%');position:absolute;bottom:-15px;right:0;font-family:var(--fm);font-size:8px;color:var(--green);background:rgba(0,6,14,.85);padding:1px 5px;white-space:nowrap;}
+@keyframes detf{0%,100%{opacity:0;transform:scale(1.08)}15%,85%{opacity:1;transform:scale(1)}}
+.cam-hud{position:absolute;right:0;top:16px;font-family:var(--fm);font-size:9px;color:rgba(0,212,255,.88);letter-spacing:1.5px;line-height:1.9;text-transform:uppercase;}
+.cam-hud .v{color:var(--neon);}
+.xhair{position:absolute;top:50%;left:50%;margin:-30px 0 0 -30px;width:60px;height:60px;pointer-events:none;animation:xhsc 3s ease-in-out infinite;}
+@keyframes xhsc{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.85;transform:scale(.82)}}
+.xhair::before,.xhair::after{content:'';position:absolute;background:var(--neon);}
+.xhair::before{width:100%;height:1px;top:50%;left:0;}
+.xhair::after{width:1px;height:100%;left:50%;top:0;}
+.xring{position:absolute;top:50%;left:50%;width:22px;height:22px;border:1px solid var(--neon);border-radius:50%;margin:-11px 0 0 -11px;animation:xrp 2s ease-in-out infinite;}
+@keyframes xrp{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.4)}50%{box-shadow:0 0 0 10px rgba(0,212,255,0)}}
+
+/* ══ TICKER ══ */
+.ticker-w{position:relative;z-index:2;overflow:hidden;border-top:1px solid rgba(0,212,255,.07);border-bottom:1px solid rgba(0,212,255,.07);padding:11px 0;background:rgba(3,24,40,.45);animation:fu .6s ease 3.6s both;}
+.ticker-i{display:flex;gap:0;white-space:nowrap;animation:tick 32s linear infinite;}
+.ti{display:inline-flex;align-items:center;gap:10px;padding:0 28px;font-family:var(--fm);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(194,240,255,.65);}
+.td{width:3px;height:3px;border-radius:50%;background:var(--neon);}
+.tv{color:var(--neon);}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ══ COMMON ══ */
+section{position:relative;z-index:1;}
+.cnt{max-width:1200px;margin:0 auto;padding:0 60px;}
+.slbl{font-family:var(--fm);font-size:10px;letter-spacing:5px;text-transform:uppercase;color:var(--neon);display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.slbl::before{content:'';width:18px;height:1px;background:var(--neon);}
+.slbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(0,212,255,.18),transparent);}
+.stitle{font-family:var(--fd);font-weight:900;font-size:clamp(26px,3.5vw,50px);letter-spacing:2px;line-height:1.1;margin-bottom:56px;}
+.stitle em{font-style:normal;color:var(--neon);}
+
+/* ══ STATS ══ */
+.stats-s{padding:56px 0;background:linear-gradient(90deg,rgba(3,24,40,.8),rgba(5,34,56,.5),rgba(3,24,40,.8));border-top:1px solid rgba(0,212,255,.07);border-bottom:1px solid rgba(0,212,255,.07);}
+.sg{display:grid;grid-template-columns:repeat(4,1fr);}
+.sc{text-align:center;padding:36px 18px;border-right:1px solid rgba(0,212,255,.07);position:relative;overflow:hidden;transition:background .3s;}
+.sc:last-child{border-right:none;}
+.sc::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:2px;background:var(--neon);transition:width .4s;}
+.sc:hover::after{width:55%;}
+.sc:hover{background:rgba(0,212,255,.025);}
+.sn{font-family:var(--fd);font-size:44px;font-weight:900;background:linear-gradient(180deg,var(--white),var(--ice));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
+.sn .ac{-webkit-text-fill-color:var(--neon);color:var(--neon);}
+.sl{font-family:var(--fm);font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(194,240,255,.70);margin-top:9px;}
+
+/* ══ HOW IT WORKS ══ */
+#how{padding:110px 0;}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.07);}
+.step{background:var(--abyss);padding:44px 28px;position:relative;overflow:hidden;transition:background .4s;}
+.step:hover{background:rgba(5,34,56,.75);}
+.step::before{content:attr(data-n);font-family:var(--fd);font-size:88px;font-weight:900;color:rgba(0,212,255,.035);position:absolute;right:-8px;top:-8px;line-height:1;pointer-events:none;}
+.s-top{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+.s-n{font-family:var(--fm);font-size:9px;letter-spacing:3px;color:rgba(0,212,255,.72);text-transform:uppercase;}
+.s-name{font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:10px;}
+.s-div{width:28px;height:1px;background:rgba(0,212,255,.18);margin:16px 0;}
+.s-desc{font-size:13px;font-weight:400;line-height:1.75;color:rgba(194,240,255,.82);}
+.s-stat{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--neon);margin-top:16px;}
+
+/* ══ TECH ══ */
+#tech{padding:110px 0;overflow:hidden;}
+.tech-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center;}
+.cam-dash{position:relative;height:500px;background:rgba(3,24,40,.55);border:1px solid rgba(0,212,255,.11);border-radius:3px;overflow:hidden;}
+.dh{padding:11px 18px;border-bottom:1px solid rgba(0,212,255,.07);display:flex;align-items:center;gap:10px;background:rgba(5,34,56,.45);}
+.dd{display:flex;gap:5px;}
+.dd-dot{width:7px;height:7px;border-radius:50%;}
+.dd-r{background:var(--warn);box-shadow:0 0 5px var(--warn);animation:blk 1s step-end infinite;}
+.dd-y{background:var(--gold);box-shadow:0 0 5px var(--gold);}
+.dd-g{background:var(--green);box-shadow:0 0 5px var(--green);}
+.dt{font-family:var(--fm);font-size:9px;letter-spacing:3px;color:rgba(0,212,255,.78);text-transform:uppercase;}
+.dlv{margin-left:auto;display:flex;align-items:center;gap:5px;font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--warn);}
+.dlv-d{width:4px;height:4px;border-radius:50%;background:var(--warn);animation:blk .7s step-end infinite;}
+.cfg{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(0,212,255,.04);height:calc(100% - 43px);}
+.cf{position:relative;overflow:hidden;background:rgba(1,13,26,.8);}
+.cf-sl{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--neon),transparent);animation:slsc var(--d,4s) linear var(--dl,0s) infinite;box-shadow:0 0 6px var(--neon);opacity:.55;}
+.cf-lbl{position:absolute;top:7px;left:7px;font-family:var(--fm);font-size:7px;letter-spacing:2px;color:var(--neon);background:rgba(0,6,14,.75);padding:2px 5px;border-left:2px solid var(--neon);}
+.cf-ts{position:absolute;bottom:7px;right:7px;font-family:var(--fm);font-size:7px;letter-spacing:1px;color:rgba(0,212,255,.78);}
+.cf-db{position:absolute;border:1.5px solid var(--warn);animation:detf var(--d,5s) ease-in-out var(--dl,0s) infinite;}
+.cf-dl{position:absolute;top:-12px;left:0;font-family:var(--fm);font-size:7px;letter-spacing:1px;color:var(--warn);background:rgba(0,6,14,.8);padding:1px 4px;white-space:nowrap;}
+.cf-ck{position:absolute;width:12px;height:12px;border-color:rgba(0,212,255,.25);border-style:solid;}
+.cf-ck.tl{top:4px;left:4px;border-width:1.5px 0 0 1.5px;}
+.cf-ck.tr{top:4px;right:4px;border-width:1.5px 1.5px 0 0;}
+.cf-ck.bl{bottom:4px;left:4px;border-width:0 0 1.5px 1.5px;}
+.cf-ck.br{bottom:4px;right:4px;border-width:0 1.5px 1.5px 0;}
+.tf-list{display:flex;flex-direction:column;gap:18px;}
+.tfi{padding:22px;background:rgba(3,24,40,.45);border:1px solid rgba(0,212,255,.09);border-radius:2px;display:flex;gap:18px;align-items:flex-start;transition:border-color .3s,background .3s,transform .3s;position:relative;overflow:hidden;}
+.tfi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,transparent,var(--neon),transparent);opacity:0;transition:opacity .3s;}
+.tfi:hover{border-color:rgba(0,212,255,.22);background:rgba(5,34,56,.45);transform:translateX(4px);}
+.tfi:hover::before{opacity:1;}
+.ti-ic{width:44px;height:44px;border-radius:2px;flex-shrink:0;background:rgba(10,74,122,.25);border:1px solid rgba(0,212,255,.18);display:flex;align-items:center;justify-content:center;font-size:19px;transition:border-color .3s,box-shadow .3s;}
+.tfi:hover .ti-ic{border-color:var(--neon);box-shadow:0 0 14px rgba(0,212,255,.14);}
+.ti-txt h4{font-family:var(--fd);font-size:12px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:7px;}
+.ti-txt p{font-size:13px;font-weight:400;line-height:1.7;color:rgba(194,240,255,.82);}
+
+/* ══ MODELS ══ */
+#models{padding:110px 0;}
+.mg{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+.mc{background:rgba(3,24,40,.55);border:1px solid rgba(0,212,255,.09);border-radius:2px;overflow:hidden;position:relative;transition:border-color .4s,transform .4s,box-shadow .4s;}
+.mc:hover{border-color:rgba(0,212,255,.28);transform:translateY(-7px);box-shadow:0 28px 55px rgba(0,0,0,.5),0 0 35px rgba(0,212,255,.07);}
+.mc.feat{border-color:rgba(0,212,255,.25);}
+.mb{position:absolute;top:14px;right:14px;font-family:var(--fm);font-size:8px;letter-spacing:2px;background:rgba(0,212,255,.09);border:1px solid rgba(0,212,255,.25);padding:3px 9px;color:var(--neon);text-transform:uppercase;}
+.mb.hot{background:rgba(255,77,46,.09);border-color:rgba(255,77,46,.28);color:var(--warn);}
+.mv{height:190px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 80%,rgba(10,74,122,.18),transparent 70%);position:relative;overflow:hidden;}
+.mv-sl{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.45),transparent);animation:slsc 3s linear infinite;}
+.mi{padding:26px;}
+.mn{font-family:var(--fd);font-size:15px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:5px;}
+.ms{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:var(--neon);text-transform:uppercase;margin-bottom:18px;}
+.msp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
+.sp .sp-l{font-family:var(--fm);font-size:7px;letter-spacing:2px;color:rgba(194,240,255,.60);text-transform:uppercase;margin-bottom:2px;}
+.sp .sp-v{font-family:var(--fb);font-size:13px;font-weight:600;color:var(--white);}
+.m-bar{height:1px;background:rgba(0,212,255,.07);margin-bottom:22px;}
+.m-cta{font-family:var(--fd);font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--neon);text-decoration:none;display:flex;align-items:center;gap:8px;transition:gap .3s;}
+.m-cta:hover{gap:14px;}
+
+/* ══ CASES ══ */
+#cases{padding:110px 0;}
+.cg{display:grid;grid-template-columns:repeat(2,1fr);gap:2px;background:rgba(0,212,255,.04);}
+.ci{background:var(--abyss);padding:44px 36px;display:flex;gap:24px;align-items:flex-start;position:relative;overflow:hidden;transition:background .3s;}
+.ci:hover{background:rgba(5,34,56,.55);}
+.ci-n{font-family:var(--fd);font-size:44px;font-weight:900;color:rgba(0,212,255,.05);line-height:1;flex-shrink:0;width:48px;}
+.ci-c h3{font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:8px;}
+.ci-c p{font-size:13px;font-weight:400;line-height:1.75;color:rgba(194,240,255,.82);}
+.ci-tag{display:inline-block;margin-top:12px;font-family:var(--fm);font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--neon);border:1px solid rgba(0,212,255,.18);padding:2px 9px;}
+
+/* ══ IMPACT ══ */
+#impact{padding:110px 0;text-align:center;}
+.imp-wrap{position:relative;width:380px;height:380px;margin:56px auto;}
+.ir{position:absolute;top:50%;left:50%;border-radius:50%;border:1px solid rgba(0,212,255,.1);animation:cw var(--d,10s) linear infinite;}
+.ir1{width:380px;height:380px;margin:-190px 0 0 -190px;}
+.ir2{width:296px;height:296px;margin:-148px 0 0 -148px;border-color:rgba(0,212,255,.15);animation-direction:reverse;}
+.ir3{width:210px;height:210px;margin:-105px 0 0 -105px;border-color:rgba(0,212,255,.2);}
+.ird{position:absolute;width:5px;height:5px;border-radius:50%;top:-2.5px;left:50%;margin-left:-2.5px;box-shadow:0 0 8px currentColor;}
+.imp-nums{position:absolute;top:0;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 1fr;}
+.in-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.in-n{font-family:var(--fd);font-size:36px;font-weight:900;color:var(--neon);line-height:1;}
+.in-l{font-family:var(--fm);font-size:8px;letter-spacing:2px;color:rgba(194,240,255,.70);text-transform:uppercase;margin-top:7px;}
+
+/* ══ CTA ══ */
+#cta{padding:110px 0;text-align:center;position:relative;overflow:hidden;}
+#cta::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:550px;height:280px;background:radial-gradient(ellipse,rgba(0,212,255,.055),transparent 70%);border-radius:50%;pointer-events:none;}
+.cb{position:absolute;width:55px;height:55px;border-color:rgba(0,212,255,.18);border-style:solid;animation:cbp 3s ease-in-out infinite;}
+.cb.tl{top:36px;left:56px;border-width:2px 0 0 2px;}
+.cb.tr{top:36px;right:56px;border-width:2px 2px 0 0;}
+.cb.bl{bottom:36px;left:56px;border-width:0 0 2px 2px;}
+.cb.br{bottom:36px;right:56px;border-width:0 2px 2px 0;}
+@keyframes cbp{0%,100%{opacity:.18}50%{opacity:.55}}
+.ce{font-family:var(--fm);font-size:10px;letter-spacing:5px;text-transform:uppercase;color:var(--neon);margin-bottom:18px;}
+.ct{font-family:var(--fd);font-size:clamp(28px,4vw,56px);font-weight:900;letter-spacing:2px;line-height:1.1;margin-bottom:18px;}
+.ct em{font-style:normal;color:var(--neon);}
+.cs{font-size:15px;font-weight:400;color:rgba(194,240,255,.82);margin-bottom:44px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.75;}
+.cform{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.cinp{background:rgba(3,24,40,.75);border:1px solid rgba(0,212,255,.18);color:var(--white);padding:13px 22px;font-family:var(--fb);font-size:14px;font-weight:400;width:290px;outline:none;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);transition:border-color .3s,box-shadow .3s;}
+.cinp:focus{border-color:rgba(0,212,255,.78);box-shadow:0 0 18px rgba(0,212,255,.07);}
+.cinp::placeholder{color:rgba(194,240,255,.60);font-family:var(--fm);font-size:11px;letter-spacing:2px;}
+
+/* ══ FOOTER ══ */
+footer{padding:36px 60px;border-top:1px solid rgba(0,212,255,.055);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px;}
+.fl{font-family:var(--fd);font-weight:700;font-size:15px;letter-spacing:4px;color:rgba(194,240,255,.70);}
+.fc{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:rgba(194,240,255,.55);}
+.flinks{display:flex;gap:22px;}
+.flinks a{font-family:var(--fm);font-size:9px;letter-spacing:2px;color:rgba(194,240,255,.60);text-decoration:none;transition:color .3s;}
+.flinks a:hover{color:var(--neon);}
+
+/* ══ REVEAL ══ */
+.r{opacity:0;transform:translateY(32px);transition:opacity .9s ease,transform .9s ease;}
+.r.in{opacity:1;transform:translateY(0);}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}.d4{transition-delay:.4s}.d5{transition-delay:.5s}
+
+/* ══ HORIZONTE ESTRATÉGICO ══ */
+#horizonte{padding:90px 0;background:linear-gradient(180deg,var(--void),rgba(3,24,40,.4),var(--void));}
+.hz-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.07);}
+.hz-card{background:var(--abyss);padding:40px 32px;position:relative;overflow:hidden;transition:background .3s;}
+.hz-card:hover{background:rgba(5,34,56,.7);}
+.hz-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--neon),transparent);opacity:0;transition:opacity .4s;}
+.hz-card:hover::after{opacity:1;}
+.hz-icon{font-size:26px;margin-bottom:16px;}
+.hz-label{font-family:var(--fm);font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--neon);margin-bottom:12px;}
+.hz-title{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:14px;}
+.hz-body{font-size:13px;line-height:1.8;color:rgba(194,240,255,.82);}
+.val-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px;}
+.val-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:rgba(194,240,255,.88);}
+.val-item::before{content:'→';color:var(--neon);flex-shrink:0;font-family:var(--fm);}
+@media(max-width:960px){.hz-grid{grid-template-columns:1fr}.val-grid{grid-template-columns:1fr}}
+
+/* ══ LIVE FEED ══ */
+#live{padding:110px 0;position:relative;overflow:hidden;}
+.live-grid{display:grid;grid-template-columns:1fr 340px;gap:50px;align-items:flex-start;}
+.live-frame{position:relative;background:rgba(3,24,40,.75);border:1px solid rgba(0,212,255,.18);border-radius:3px;overflow:hidden;display:flex;flex-direction:column;}
+.live-body{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:420px;background:#010d1a;}
+.live-body img{max-width:100%;max-height:480px;object-fit:contain;position:relative;z-index:1;}
+.live-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--neon),transparent);box-shadow:0 0 12px var(--neon);animation:slsc 3s ease-in-out infinite;pointer-events:none;z-index:2;}
+.live-corner{position:absolute;width:22px;height:22px;border-color:rgba(0,212,255,.78);border-style:solid;pointer-events:none;z-index:3;}
+.lc-tl{top:10px;left:10px;border-width:2px 0 0 2px;}
+.lc-tr{top:10px;right:10px;border-width:2px 2px 0 0;}
+.lc-bl{bottom:10px;left:10px;border-width:0 0 2px 2px;}
+.lc-br{bottom:10px;right:10px;border-width:0 2px 2px 0;}
+.live-badge{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--warn);background:rgba(0,6,14,.85);padding:3px 9px;border:1px solid rgba(255,77,46,.3);z-index:4;}
+.live-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--warn);animation:blk .7s step-end infinite;}
+.live-ts{position:absolute;bottom:12px;right:12px;font-family:var(--fm);font-size:8px;letter-spacing:1px;color:rgba(0,212,255,.6);background:rgba(0,6,14,.85);padding:3px 7px;z-index:4;}
+.live-filename{position:absolute;bottom:12px;left:12px;font-family:var(--fm);font-size:8px;letter-spacing:1px;color:rgba(0,212,255,.5);background:rgba(0,6,14,.85);padding:3px 7px;z-index:4;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.live-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:rgba(0,212,255,.28);font-family:var(--fm);font-size:10px;letter-spacing:3px;text-transform:uppercase;position:absolute;inset:0;z-index:1;}
+.live-info{display:flex;flex-direction:column;gap:16px;}
+.li-card{background:rgba(3,24,40,.45);border:1px solid rgba(0,212,255,.09);padding:22px;border-radius:2px;position:relative;overflow:hidden;}
+.li-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,transparent,var(--neon),transparent);opacity:0;transition:opacity .3s;}
+.li-card:hover::before{opacity:1;}
+.li-card h4{font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:2px;color:var(--white);margin-bottom:10px;}
+.li-card p{font-size:13px;line-height:1.75;color:rgba(194,240,255,.82);}
+.li-stat{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,212,255,.06);}
+.li-stat:last-child{border-bottom:none;}
+.li-sl{font-family:var(--fm);font-size:8px;letter-spacing:2px;color:rgba(194,240,255,.65);text-transform:uppercase;}
+.li-sv{font-family:var(--fm);font-size:10px;color:var(--neon);}
+.live-conn{display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:9px;letter-spacing:2px;color:rgba(194,240,255,.45);margin-top:14px;}
+.live-conn-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex-shrink:0;}
+.live-conn-dot.err{background:var(--warn);box-shadow:0 0 8px var(--warn);}
+.live-conn-dot.wait{background:var(--gold);box-shadow:0 0 8px var(--gold);animation:blk 1s step-end infinite;}
+
+/* ══ HAMBURGER ══ */
+.ham{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:8px;background:none;border:none;z-index:1001;}
+.ham span{display:block;width:24px;height:2px;background:var(--neon);border-radius:2px;transition:transform .3s,opacity .3s;}
+.ham.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.ham.open span:nth-child(2){opacity:0;}
+.ham.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+.mob-menu{display:none;position:fixed;top:68px;left:0;right:0;background:rgba(0,6,14,.97);border-bottom:1px solid rgba(0,212,255,.12);backdrop-filter:blur(20px);padding:20px 22px 28px;z-index:999;flex-direction:column;gap:0;}
+.mob-menu.open{display:flex;}
+.mob-menu a{font-family:var(--fb);font-weight:600;font-size:14px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:rgba(194,240,255,.65);padding:14px 0;border-bottom:1px solid rgba(0,212,255,.06);transition:color .3s;}
+.mob-menu a:hover{color:var(--neon);}
+.mob-menu .nc{margin-top:16px;border:1px solid var(--neon)!important;color:var(--neon)!important;text-align:center;padding:12px!important;clip-path:polygon(7px 0,100% 0,calc(100% - 7px) 100%,0 100%);}
+/* ══ RESPONSIVE ══ */
+@media(max-width:960px){
+  nav{padding:0 20px}.nav-links{display:none}.ham{display:flex;}
+  .cnt{padding:0 22px}
+  .hero-grid{grid-template-columns:1fr}
+  .hcw{display:none}
+  .sg{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:1fr 1fr}
+  .tech-grid{grid-template-columns:1fr}
+  .mg{grid-template-columns:1fr}
+  .cg{grid-template-columns:1fr}
+  .imp-wrap{width:290px;height:290px}
+  .live-grid{grid-template-columns:1fr}
+  footer{padding:28px 22px}
+  #how,#tech,#models,#cases,#impact,#cta,#live{padding:75px 0}
+  #hero{padding:85px 22px 55px}
+}
+</style>
 </head>
 <body>
+<div id="cur"></div><div id="cur-ring"></div><div id="cur-h"></div><div id="cur-v"></div>
+<canvas id="bgC"></canvas>
 
-    <a href="ecoview_2.html" class="brand-link">← EcoView</a>
+<!-- ════ PRELOADER ════ -->
+<div id="pl">
+  <div class="pl-hud">
+    <div class="pl-r pl-r1"></div><div class="pl-r pl-r2"></div><div class="pl-r pl-r3"></div>
+    <div class="pl-bk tl"></div><div class="pl-bk tr"></div><div class="pl-bk bl"></div><div class="pl-bk br"></div>
+    <div class="pl-scan"></div>
+    <!-- PRELOADER: security / bullet CCTV camera -->
+    <svg width="100" height="80" viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;filter:drop-shadow(0 0 14px #00d4ff)">
+      <defs>
+        <radialGradient id="pg" cx="38%" cy="38%"><stop offset="0%" stop-color="#1490ff"/><stop offset="100%" stop-color="#00060e"/></radialGradient>
+        <filter id="gf"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="pbg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#052238"/><stop offset="100%" stop-color="#0a4a7a"/></linearGradient>
+      </defs>
+      <!-- mount bracket -->
+      <rect x="45" y="4" width="10" height="18" rx="3" fill="#031828" stroke="#0d6abf" stroke-width="1.5"/>
+      <!-- pivot joint -->
+      <circle cx="50" cy="24" r="5" fill="#041526" stroke="#00d4ff" stroke-width="1.5"/>
+      <!-- camera body (horizontal bullet) -->
+      <rect x="8" y="28" width="66" height="22" rx="8" fill="url(#pbg)" stroke="#0d6abf" stroke-width="1.5"/>
+      <!-- front lens housing -->
+      <circle cx="78" cy="39" r="17" fill="#010d1a" stroke="#1490ff" stroke-width="1.5"/>
+      <circle cx="78" cy="39" r="12" fill="none" stroke="rgba(20,144,255,.3)" stroke-width="1"/>
+      <circle cx="78" cy="39" r="8" fill="url(#pg)" stroke="#0d6abf" stroke-width="1"/>
+      <circle cx="78" cy="39" r="4" fill="#00060e" stroke="#00d4ff" stroke-width="1"/>
+      <circle cx="78" cy="39" r="2" fill="#00d4ff" filter="url(#gf)">
+        <animate attributeName="r" values="1.5;3.5;1.5" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values=".6;1;.6" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <!-- IR LEDs ring -->
+      <circle cx="78" cy="24" r="2" fill="#ff4d2e"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" repeatCount="indefinite"/></circle>
+      <circle cx="78" cy="54" r="2" fill="#ff4d2e"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".3s" repeatCount="indefinite"/></circle>
+      <circle cx="63" cy="28" r="2" fill="#ff4d2e"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".6s" repeatCount="indefinite"/></circle>
+      <circle cx="63" cy="50" r="2" fill="#ff4d2e"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".9s" repeatCount="indefinite"/></circle>
+      <!-- status LED -->
+      <circle cx="18" cy="39" r="3.5" fill="#00ff9d" filter="url(#gf)">
+        <animate attributeName="opacity" values=".3;1;.3" dur=".9s" repeatCount="indefinite"/>
+      </circle>
+      <!-- FOV cone hint -->
+      <path d="M 70 39 L 4 22 L 4 56 Z" fill="rgba(0,212,255,.04)" stroke="rgba(0,212,255,.1)" stroke-width=".5">
+        <animate attributeName="opacity" values="0;.18;0" dur="3s" repeatCount="indefinite"/>
+      </path>
+      <!-- HUD corners -->
+      <g stroke="#00d4ff" stroke-width="1.5" fill="none">
+        <path d="M4 28 L4 22 L10 22"/><path d="M96 28 L96 22 L90 22"/>
+        <path d="M4 50 L4 56 L10 56"/><path d="M96 50 L96 56 L90 56"/>
+        <animate attributeName="opacity" values=".3;.75;.3" dur="2s" repeatCount="indefinite"/>
+      </g>
+    </svg>
+  </div>
+  <div class="pl-title">ECOVIEW</div>
+  <div class="pl-sub">Inicializando sistemas de vigilancia...</div>
+  <div class="pl-bw"><div class="pl-bt"><div class="pl-bf"></div></div></div>
+</div>
 
-    <div id="image-wrapper"></div>
+<!-- ════ NAV ════ -->
+<nav>
+  <a href="#" class="nav-logo" aria-label="EcoView — inicio">
+    <div class="lc"><div class="lc-top"></div><div class="lc-body"></div><div class="lc-lens"></div><div class="lc-led"></div></div>
+    ECOVIEW
+  </a>
+  <ul class="nav-links" role="navigation" aria-label="Navegación principal">
+    <li><a href="#how">Protocolo</a></li>
+    <li><a href="#tech">Tecnología</a></li>
+    <li><a href="#cases">Mercado</a></li>
+    <li><a href="#horizonte">Nosotros</a></li>
+    <li><a href="#live">En Vivo</a></li>
+    <li><a href="#cta" class="nc">Contacto</a></li>
+  </ul>
+  <button class="ham" id="hamBtn" aria-label="Abrir menú" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<nav class="mob-menu" id="mobMenu" aria-label="Menú móvil">
+  <a href="#how" class="mob-link">Protocolo</a>
+  <a href="#tech" class="mob-link">Tecnología</a>
+  <a href="#models" class="mob-link">Hardware</a>
+  <a href="#cases" class="mob-link">Despliegue</a>
+  <a href="#live" class="mob-link">En Vivo</a>
+  <a href="#cta" class="nc mob-link">Ver Demo</a>
+</nav>
 
-    <div class="status">
-        <div class="dot" id="statusDot"></div>
-        <span id="log">Conectando...</span>
+<!-- ════ HERO ════ -->
+<section id="hero">
+  <div class="hud-line hl-h1"></div><div class="hud-line hl-h2"></div>
+  <div class="hud-line hl-v1"></div><div class="hud-line hl-v2"></div>
+  <div class="hud-corner hc-tl"></div><div class="hud-corner hc-tr"></div>
+  <div class="hud-corner hc-bl"></div><div class="hud-corner hc-br"></div>
+  <div class="hud-tag" style="top:86px;left:56px">ID_SYS: ECV-2025</div>
+  <div class="hud-tag" style="top:86px;right:56px;text-align:right">ESTADO: ACTIVO</div>
+  <div class="hud-tag" id="heroTime" style="bottom:55px;left:56px">00:00:00 UTC</div>
+  <div class="hud-tag" style="bottom:55px;right:56px;text-align:right">RED: SEGURA</div>
+
+  <div class="hero-grid cnt">
+    <div>
+      <div class="h-eyebrow"><div class="h-el"></div><div class="h-ed"></div>Vigilancia Ambiental Escolar con IA · La Vega, R.D.</div>
+      <h1 class="hero-title">
+        <span class="w1">DETECTA.</span>
+        <span class="w2">CAPTURA.</span>
+        <span class="w3">IA que protege y mantiene limpio tu entorno educativo</span>
+      </h1>
+      <p class="hero-desc">EcoView es un sistema de vigilancia inteligente para centros educativos: detecta automáticamente quién arroja basura, captura evidencia fotográfica con fecha, hora y ubicación, y la almacena en la nube para apoyar decisiones administrativas justas y transparentes.</p>
+      <div class="hero-acts">
+        <a href="#cta" class="bp">Solicitar Demo</a>
+        <a href="#how" class="bo">Ver Protocolo →</a>
+      </div>
     </div>
 
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+    <!-- HERO CAM WIDGET -->
+    <div class="hcw">
+      <div class="orb orb1"><div class="odot" style="background:var(--neon);color:var(--neon)"></div></div>
+      <div class="orb orb2"><div class="odot" style="background:var(--warn);color:var(--warn)"></div></div>
+      <div class="orb orb3"><div class="odot" style="background:var(--gold);color:var(--gold)"></div></div>
 
-        // --- CONFIGURACIÓN ---
-        const SUPABASE_URL = 'https://myrmzbgcciyigeazrmfx.supabase.co'
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15cm16YmdjY2l5aWdlYXpybWZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDAzNzUsImV4cCI6MjA5MDIxNjM3NX0.hKD6QzUOfBG25q-juiW5KPLQFNKMuvZASK_2gf4JjYg'
-        const BUCKET_NAME = 'capturas' 
-        const FRECUENCIA_BUSQUEDA = 3000; // 3 segundos
+      <!-- HERO: bullet CCTV security camera pointing right -->
+      <div class="hcw-cam">
+        <svg viewBox="0 0 280 240" xmlns="http://www.w3.org/2000/svg" width="280" height="240">
+          <defs>
+            <radialGradient id="lg" cx="38%" cy="38%"><stop offset="0%" stop-color="#1490ff"/><stop offset="100%" stop-color="#00060e"/></radialGradient>
+            <radialGradient id="lg2" cx="42%" cy="40%"><stop offset="0%" stop-color="#0a4a7a"/><stop offset="100%" stop-color="#010d1a"/></radialGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="glow2"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <linearGradient id="cbody" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#083050"/><stop offset="60%" stop-color="#0a4a7a"/><stop offset="100%" stop-color="#0d6abf"/></linearGradient>
+            <linearGradient id="cbodyV" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="rgba(20,144,255,0.18)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></linearGradient>
+          </defs>
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
-        let lastFileName = null;
+          <!-- ── Wall mount bracket ── -->
+          <rect x="118" y="18" width="18" height="38" rx="5" fill="#031828" stroke="#0d6abf" stroke-width="1.5"/>
+          <rect x="122" y="14" width="10" height="8" rx="2" fill="#041526" stroke="#00d4ff" stroke-width="1"/>
+          <!-- mounting screws -->
+          <circle cx="127" cy="24" r="2.5" fill="#010d1a" stroke="#0d6abf" stroke-width="1"/>
+          <circle cx="127" cy="44" r="2.5" fill="#010d1a" stroke="#0d6abf" stroke-width="1"/>
 
-        async function buscarUltimaImagen() {
-            try {
-                // 1. Listar el último archivo del bucket
-                const { data, error } = await supabase
-                    .storage
-                    .from(BUCKET_NAME)
-                    .list('', {
-                        limit: 1,
-                        sortBy: { column: 'created_at', order: 'desc' }
-                    });
+          <!-- ── Pivot / tilt joint ── -->
+          <circle cx="127" cy="56" r="10" fill="#041526" stroke="#00d4ff" stroke-width="2"/>
+          <circle cx="127" cy="56" r="5.5" fill="#083050" stroke="#0d6abf" stroke-width="1"/>
+          <circle cx="127" cy="56" r="2.5" fill="#00d4ff" filter="url(#glow2)" opacity=".6"/>
 
-                if (error) throw error;
+          <!-- ── FOV cone (field of view) — animated sweep ── -->
+          <path d="M 220 118 L 32 52 L 32 184 Z" fill="rgba(0,212,255,0.025)" stroke="rgba(0,212,255,0.06)" stroke-width=".5">
+            <animateTransform attributeName="transform" type="rotate" values="-5 220 118;8 220 118;-5 220 118" dur="8s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.6;1.2;0.6" dur="8s" repeatCount="indefinite"/>
+          </path>
+          <!-- FOV boundary lines -->
+          <line x1="220" y1="118" x2="32" y2="52" stroke="rgba(0,212,255,0.12)" stroke-width="1" stroke-dasharray="5 4">
+            <animateTransform attributeName="transform" type="rotate" values="-5 220 118;8 220 118;-5 220 118" dur="8s" repeatCount="indefinite"/>
+          </line>
+          <line x1="220" y1="118" x2="32" y2="184" stroke="rgba(0,212,255,0.12)" stroke-width="1" stroke-dasharray="5 4">
+            <animateTransform attributeName="transform" type="rotate" values="-5 220 118;8 220 118;-5 220 118" dur="8s" repeatCount="indefinite"/>
+          </line>
 
-                if (data && data.length > 0) {
-                    const currentFile = data[0];
+          <!-- ── Camera body (horizontal bullet) ── -->
+          <rect x="40" y="92" width="180" height="52" rx="18" fill="url(#cbody)" stroke="#0d6abf" stroke-width="2"/>
+          <!-- top highlight -->
+          <rect x="44" y="93" width="172" height="10" rx="15" fill="url(#cbodyV)" opacity=".6"/>
+          <!-- ventilation slots -->
+          <line x1="68" y1="100" x2="68" y2="136" stroke="rgba(0,212,255,0.12)" stroke-width="1.5"/>
+          <line x1="80" y1="100" x2="80" y2="136" stroke="rgba(0,212,255,0.10)" stroke-width="1.5"/>
+          <line x1="92" y1="100" x2="92" y2="136" stroke="rgba(0,212,255,0.08)" stroke-width="1.5"/>
 
-                    // 2. Si el nombre es diferente al anterior, actualizar
-                    if (currentFile.name !== lastFileName) {
-                        lastFileName = currentFile.name;
-                        actualizarDOM(currentFile.name);
-                    }
-                    document.getElementById('log').innerText = `En línea - Última: ${currentFile.name}`;
-                }
-            } catch (err) {
-                console.error("EcoView Visor:", err);
-                document.getElementById('log').innerText = "Error de conexión — reintentando...";
-                const dot = document.getElementById('statusDot');
-                if(dot) dot.classList.add('err');
-                setTimeout(() => { if(dot) dot.classList.remove('err'); }, 3000);
-            }
-        }
+          <!-- status LED on body -->
+          <circle cx="58" cy="118" r="4.5" fill="#00ff9d" filter="url(#glow2)">
+            <animate attributeName="opacity" values=".35;1;.35" dur=".9s" repeatCount="indefinite"/>
+          </circle>
 
-        function actualizarDOM(fileName) {
-            const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName);
-            const wrapper = document.getElementById('image-wrapper');
-            
-            // Crear nueva imagen para hacer transición suave
-            const newImg = new Image();
-            newImg.src = data.publicUrl;
-            newImg.onload = () => {
-                wrapper.innerHTML = ""; // Limpiar anterior
-                newImg.classList.add('loaded');
-                wrapper.appendChild(newImg);
-            };
-        }
+          <!-- data-packet dots travelling along body -->
+          <circle r="3" fill="var(--neon)" opacity="0">
+            <animate attributeName="cx" values="195;120;80;50" dur="2.2s" repeatCount="indefinite" calcMode="linear"/>
+            <animate attributeName="cy" values="118;118;118;118" dur="2.2s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;1;1;0" dur="2.2s" repeatCount="indefinite"/>
+          </circle>
+          <circle r="2.5" fill="rgba(0,212,255,.7)" opacity="0">
+            <animate attributeName="cx" values="195;120;80;50" dur="2.2s" begin=".7s" repeatCount="indefinite" calcMode="linear"/>
+            <animate attributeName="cy" values="118;118;118;118" dur="2.2s" begin=".7s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0;1;1;0" dur="2.2s" begin=".7s" repeatCount="indefinite"/>
+          </circle>
 
-        // Iniciar ciclo
-        buscarUltimaImagen();
-        setInterval(buscarUltimaImagen, FRECUENCIA_BUSQUEDA);
-    </script>
+          <!-- ── Lens housing (front right) ── -->
+          <circle cx="220" cy="118" r="36" fill="#010d1a" stroke="#0d6abf" stroke-width="2"/>
+          <!-- IR LED ring -->
+          <circle cx="220" cy="84" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" repeatCount="indefinite"/></circle>
+          <circle cx="220" cy="152" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" begin=".4s" repeatCount="indefinite"/></circle>
+          <circle cx="184" cy="99" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" begin=".8s" repeatCount="indefinite"/></circle>
+          <circle cx="184" cy="137" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" begin=".2s" repeatCount="indefinite"/></circle>
+          <circle cx="256" cy="99" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" begin="1s" repeatCount="indefinite"/></circle>
+          <circle cx="256" cy="137" r="4" fill="#aa1800"><animate attributeName="opacity" values=".2;.95;.2" dur="1.6s" begin=".6s" repeatCount="indefinite"/></circle>
+          <!-- lens rings -->
+          <circle cx="220" cy="118" r="28" fill="none" stroke="rgba(20,144,255,0.3)" stroke-width="1.5"/>
+          <circle cx="220" cy="118" r="22" fill="url(#lg2)" stroke="#1490ff" stroke-width="2"/>
+          <circle cx="220" cy="118" r="14" fill="#00060e" stroke="#00d4ff" stroke-width="1.5"/>
+          <circle cx="220" cy="118" r="7" fill="url(#lg)" stroke="rgba(0,212,255,0.5)" stroke-width="1"/>
+          <!-- lens pupil -->
+          <circle cx="220" cy="118" r="3.5" fill="#00d4ff" filter="url(#glow)">
+            <animate attributeName="r" values="2.5;5.5;2.5" dur="2.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values=".7;1;.7" dur="2.5s" repeatCount="indefinite"/>
+          </circle>
+          <!-- lens glint -->
+          <ellipse cx="210" cy="108" rx="5" ry="3.5" fill="white" opacity="0.09" transform="rotate(-30 210 108)"/>
+
+          <!-- ── scanning ring ── -->
+          <circle cx="220" cy="118" r="36" fill="none" stroke="rgba(0,212,255,0.18)" stroke-width="1.5">
+            <animate attributeName="r" values="22;50;22" dur="3.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.6;0;0.6" dur="3.5s" repeatCount="indefinite"/>
+          </circle>
+
+          <!-- ── cable going to mount ── -->
+          <path d="M 127 66 Q 127 80 130 92" stroke="#0d6abf" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+          <!-- ── HUD corners ── -->
+          <g stroke="#00d4ff" stroke-width="2" fill="none">
+            <path d="M36 88 L36 78 L48 78"/>
+            <path d="M218 88 L218 78 L206 78"/>
+            <path d="M36 148 L36 158 L48 158"/>
+            <path d="M218 148 L218 158 L206 158"/>
+            <animate attributeName="opacity" values="0.3;0.85;0.3" dur="2.2s" repeatCount="indefinite"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="hcw-ir-glow"></div>
+      <div class="hcw-pan-arc"><div class="hcw-pan-dot"></div></div>
+      <div class="cam-sl"></div>
+      <div class="det" style="width:68px;height:58px;top:80px;left:52px;--lbl:'BASURA #1';--cf:'98.1%';--d:4.5s;--dl:.6s;"></div>
+      <div class="det" style="width:52px;height:44px;top:142px;right:48px;--lbl:'SUJETO';--cf:'96.4%';--d:5.5s;--dl:2.2s;border-color:var(--green);" ></div>
+      <div class="xhair" style="margin-top:-30px;margin-left:-30px;top:53%;left:50%;"><div class="xring"></div></div>
+      <div class="cam-hud">
+        <div>MODO: <span class="v">DETECT</span></div>
+        <div>CONF: <span class="v">99.4%</span></div>
+        <div>FPS: <span class="v">60</span></div>
+        <div>RES: <span class="v">4K</span></div>
+        <div>IA: <span class="v">ACTIVA</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker-w">
+    <div class="ticker-i">
+      <span class="ti"><span class="td"></span> Detección en Tiempo Real <span class="tv">// &lt;0.3s de latencia</span></span>
+      <span class="ti"><span class="td"></span> Evidencia con Metadatos <span class="tv">// Fecha · Hora · Ubicación</span></span>
+      <span class="ti"><span class="td"></span> Red Neuronal Entrenada <span class="tv">// +200 tipos de residuos</span></span>
+      <span class="ti"><span class="td"></span> Almacenamiento en la Nube <span class="tv">// Supabase · Cifrado</span></span>
+      <span class="ti"><span class="td"></span> 80% Apoyo Comunitario <span class="tv">// Estudio de mercado local</span></span>
+      <span class="ti"><span class="td"></span> Privacidad Primero <span class="tv">// Sin datos biométricos</span></span>
+      <span class="ti"><span class="td"></span> Entorno Escolar <span class="tv">// Piloto: CEFODIPF · La Vega</span></span>
+      <span class="ti"><span class="td"></span> Detección en Tiempo Real <span class="tv">// &lt;0.3s de latencia</span></span>
+      <span class="ti"><span class="td"></span> Evidencia con Metadatos <span class="tv">// Fecha · Hora · Ubicación</span></span>
+      <span class="ti"><span class="td"></span> Red Neuronal Entrenada <span class="tv">// +200 tipos de residuos</span></span>
+      <span class="ti"><span class="td"></span> Almacenamiento en la Nube <span class="tv">// Supabase · Cifrado</span></span>
+      <span class="ti"><span class="td"></span> 80% Apoyo Comunitario <span class="tv">// Estudio de mercado local</span></span>
+      <span class="ti"><span class="td"></span> Privacidad Primero <span class="tv">// Sin datos biométricos</span></span>
+      <span class="ti"><span class="td"></span> Entorno Escolar <span class="tv">// Piloto: CEFODIPF · La Vega</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ════ STATS ════ -->
+<div class="stats-s r"><div class="cnt"><div class="sg">
+  <div class="sc r"><div class="sn"><span class="counter" data-t="80">0</span><span class="ac">%</span></div><div class="sl">Apoyo Comunitario</div></div>
+  <div class="sc r d1"><div class="sn">0<span class="ac">.</span>3<span style="font-size:.5em;-webkit-text-fill-color:inherit">s</span></div><div class="sl">Tiempo de Respuesta IA</div></div>
+  <div class="sc r d2"><div class="sn"><span class="counter" data-t="200">0</span><span class="ac">+</span></div><div class="sl">Tipos de Residuos Detectados</div></div>
+  <div class="sc r d3"><div class="sn"><span class="counter" data-t="8">0</span></div><div class="sl">Integrantes del Equipo</div></div>
+</div></div></div>
+
+<!-- ════ LIVE FEED ════ -->
+<section id="live"><div class="cnt">
+  <div class="slbl r">Transmisión en Vivo</div>
+  <h2 class="stitle r">Capturas <em>en Tiempo Real</em></h2>
+  <div class="live-grid r">
+
+    <!-- FRAME IMAGEN -->
+    <div class="live-frame">
+      <div class="dh">
+        <div class="dd"><div class="dd-dot dd-r"></div><div class="dd-dot dd-y"></div><div class="dd-dot dd-g"></div></div>
+        <span class="dt">EcoView — Última captura detectada</span>
+        <div class="dlv" id="liveStatusLabel"><div class="dlv-d"></div>CONECTANDO</div>
+      </div>
+      <div class="live-body" id="liveBody">
+        <div class="live-scan"></div>
+        <div class="live-corner lc-tl"></div>
+        <div class="live-corner lc-tr"></div>
+        <div class="live-corner lc-bl"></div>
+        <div class="live-corner lc-br"></div>
+        <div class="live-badge"><div class="live-badge-dot"></div>EN VIVO</div>
+        <div class="live-placeholder" id="livePlaceholder">
+          <!-- Live placeholder: bullet security cam -->
+          <svg width="72" height="58" viewBox="0 0 72 58" xmlns="http://www.w3.org/2000/svg" opacity=".35">
+            <!-- mount -->
+            <rect x="32" y="2" width="8" height="14" rx="3" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+            <!-- pivot -->
+            <circle cx="36" cy="18" r="5" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+            <!-- body -->
+            <rect x="8" y="24" width="42" height="16" rx="6" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+            <!-- lens housing -->
+            <circle cx="58" cy="32" r="13" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+            <circle cx="58" cy="32" r="8" fill="none" stroke="rgba(0,212,255,.4)" stroke-width="1.5"/>
+            <circle cx="58" cy="32" r="3.5" fill="none" stroke="#00d4ff" stroke-width="1.5"/>
+            <circle cx="58" cy="32" r="1.8" fill="#00d4ff">
+              <animate attributeName="opacity" values=".3;1;.3" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <!-- FOV lines -->
+            <line x1="48" y1="32" x2="4" y2="18" stroke="rgba(0,212,255,.2)" stroke-width="1" stroke-dasharray="4 3"/>
+            <line x1="48" y1="32" x2="4" y2="46" stroke="rgba(0,212,255,.2)" stroke-width="1" stroke-dasharray="4 3"/>
+            <!-- cable -->
+            <path d="M36 23 Q36 28 38 24" stroke="#00d4ff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          </svg>
+          <span id="liveLog">Aguardando capturas...</span>
+        </div>
+        <img id="liveImg" src="" alt="Última captura EcoView"
+          style="display:none;max-width:100%;max-height:460px;width:100%;object-fit:contain;transition:opacity .8s ease;opacity:0;position:relative;z-index:1;">
+        <div class="live-ts" id="liveClock">--:--:--</div>
+        <div class="live-filename" id="liveFilename"></div>
+      </div>
+    </div>
+
+    <!-- INFO LATERAL -->
+    <div class="live-info">
+      <div class="li-card r">
+        <h4>Estado del Sistema</h4>
+        <div class="live-conn"><div class="live-conn-dot wait" id="liveConnDot"></div><span id="liveStatusText">Conectando a Supabase...</span></div>
+        <div style="margin-top:16px">
+          <div class="li-stat"><span class="li-sl">Bucket</span><span class="li-sv">capturas</span></div>
+          <div class="li-stat"><span class="li-sl">Intervalo</span><span class="li-sv">3 seg</span></div>
+          <div class="li-stat"><span class="li-sl">Última imagen</span><span class="li-sv" id="liveLastFile">—</span></div>
+          <div class="li-stat"><span class="li-sl">Actualizaciones</span><span class="li-sv" id="liveCount">0</span></div>
+        </div>
+      </div>
+      <div class="li-card r d1">
+        <h4>Detección Automática</h4>
+        <p>Cada vez que el sistema EcoView detecta un acto de contaminación, captura evidencia fotográfica y la sube automáticamente a la nube. Esta sección muestra la imagen más reciente en tiempo real.</p>
+      </div>
+      <div class="li-card r d2">
+        <h4>Evidencia Verificada</h4>
+        <p>Cada captura incluye metadatos de GPS, sello de tiempo e ID de incidente — generando un paquete de evidencia legalmente admisible de forma automática.</p>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ════ HOW IT WORKS ════ -->
+<section id="how"><div class="cnt">
+  <div class="slbl r">Protocolo de Detección</div>
+  <h2 class="stitle r">Cómo funciona<br><em>EcoView</em></h2>
+  <div class="steps r">
+    <div class="step" data-n="01">
+      <div class="s-top">
+        <!-- Step 01: security cam + FOV sweep -->
+        <svg width="52" height="42" viewBox="0 0 52 42" xmlns="http://www.w3.org/2000/svg">
+          <!-- mount -->
+          <rect x="22" y="2" width="6" height="10" rx="2" fill="#052238" stroke="#0d6abf" stroke-width="1"/>
+          <!-- pivot -->
+          <circle cx="25" cy="14" r="3.5" fill="#041526" stroke="#00d4ff" stroke-width="1"/>
+          <!-- FOV cone -->
+          <path d="M 38 24 L 4 14 L 4 34 Z" fill="rgba(0,212,255,0.07)" stroke="rgba(0,212,255,0.18)" stroke-width=".75">
+            <animateTransform attributeName="transform" type="rotate" values="-6 38 24;6 38 24;-6 38 24" dur="5s" repeatCount="indefinite"/>
+          </path>
+          <!-- body -->
+          <rect x="8" y="18" width="30" height="12" rx="4" fill="#052238" stroke="#0d6abf" stroke-width="1.5"/>
+          <!-- lens housing -->
+          <circle cx="41" cy="24" r="9" fill="#010d1a" stroke="#1490ff" stroke-width="1.5"/>
+          <circle cx="41" cy="24" r="6" fill="none" stroke="rgba(20,144,255,.3)" stroke-width="1"/>
+          <circle cx="41" cy="24" r="3.5" fill="#031828" stroke="#00d4ff" stroke-width="1"/>
+          <circle cx="41" cy="24" r="1.8" fill="#00d4ff">
+            <animate attributeName="opacity" values=".4;1;.4" dur="2s" repeatCount="indefinite"/>
+          </circle>
+          <!-- IR LEDs -->
+          <circle cx="41" cy="15" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" repeatCount="indefinite"/></circle>
+          <circle cx="41" cy="33" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".5s" repeatCount="indefinite"/></circle>
+          <!-- status LED -->
+          <circle cx="12" cy="24" r="2" fill="#00ff9d"><animate attributeName="opacity" values=".3;1;.3" dur=".9s" repeatCount="indefinite"/></circle>
+        </svg>
+        <div class="s-n">Paso 01</div>
+      </div>
+      <h3 class="s-name">Monitoreo Continuo</h3><div class="s-div"></div>
+      <p class="s-desc">Cámaras de alta definición instaladas en zonas críticas del centro educativo monitorean espacios en tiempo real, identificando movimiento y comportamientos sospechosos.</p>
+      <div class="s-stat">↑ Cobertura constante del campus</div>
+    </div>
+    <div class="step" data-n="02">
+      <div class="s-top">
+        <!-- Step 02: security cam + animated AI detection boxes -->
+        <svg width="52" height="42" viewBox="0 0 52 42" xmlns="http://www.w3.org/2000/svg">
+          <!-- mount -->
+          <rect x="22" y="2" width="6" height="10" rx="2" fill="#052238" stroke="#0d6abf" stroke-width="1"/>
+          <!-- pivot -->
+          <circle cx="25" cy="14" r="3.5" fill="#041526" stroke="#00d4ff" stroke-width="1"/>
+          <!-- body -->
+          <rect x="8" y="18" width="30" height="12" rx="4" fill="#052238" stroke="#0d6abf" stroke-width="1.5"/>
+          <!-- lens housing -->
+          <circle cx="41" cy="24" r="9" fill="#010d1a" stroke="#1490ff" stroke-width="1.5"/>
+          <circle cx="41" cy="24" r="3.5" fill="#031828" stroke="#00d4ff" stroke-width="1"/>
+          <circle cx="41" cy="24" r="1.8" fill="#00d4ff"/>
+          <!-- AI detection boxes floating in FOV -->
+          <rect x="3" y="10" width="10" height="9" fill="none" stroke="#ff4d2e" stroke-width="1.2" rx="1">
+            <animate attributeName="opacity" values="0;1;1;0" dur="2.8s" repeatCount="indefinite"/>
+          </rect>
+          <rect x="3" y="27" width="8" height="8" fill="none" stroke="#ff4d2e" stroke-width="1.2" rx="1">
+            <animate attributeName="opacity" values="0;1;1;0" dur="2.8s" begin="1.1s" repeatCount="indefinite"/>
+          </rect>
+          <!-- scanning line -->
+          <line x1="3" y1="20" x2="33" y2="20" stroke="rgba(0,212,255,.7)" stroke-width=".8">
+            <animate attributeName="y1" values="10;38;10" dur="2s" repeatCount="indefinite"/>
+            <animate attributeName="y2" values="10;38;10" dur="2s" repeatCount="indefinite"/>
+          </line>
+          <!-- IR LEDs -->
+          <circle cx="41" cy="15" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" repeatCount="indefinite"/></circle>
+          <circle cx="41" cy="33" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".5s" repeatCount="indefinite"/></circle>
+        </svg>
+        <div class="s-n">Paso 02</div>
+      </div>
+      <h3 class="s-name">Detección con IA</h3><div class="s-div"></div>
+      <p class="s-desc">Red neuronal entrenada para identificar el patrón de movimiento exacto al momento de tirar basura, clasificando más de 200 tipos de residuos en tiempo real.</p>
+      <div class="s-stat">↑ Respuesta en menos de 0.3 segundos</div>
+    </div>
+    <div class="step" data-n="03">
+      <div class="s-top">
+        <!-- Step 03: security cam + evidence frame + flash capture -->
+        <svg width="52" height="42" viewBox="0 0 52 42" xmlns="http://www.w3.org/2000/svg">
+          <!-- mount -->
+          <rect x="22" y="2" width="6" height="10" rx="2" fill="#052238" stroke="#0d6abf" stroke-width="1"/>
+          <!-- pivot -->
+          <circle cx="25" cy="14" r="3.5" fill="#041526" stroke="#00d4ff" stroke-width="1"/>
+          <!-- body -->
+          <rect x="8" y="18" width="30" height="12" rx="4" fill="#052238" stroke="#0d6abf" stroke-width="1.5"/>
+          <!-- lens housing -->
+          <circle cx="41" cy="24" r="9" fill="#010d1a" stroke="#1490ff" stroke-width="1.5"/>
+          <circle cx="41" cy="24" r="3.5" fill="#031828" stroke="#00d4ff" stroke-width="1"/>
+          <circle cx="41" cy="24" r="1.8" fill="#00d4ff"/>
+          <!-- evidence capture frame corners -->
+          <g stroke="#ffd166" stroke-width="1.5" fill="none">
+            <path d="M4 10 L4 7 L8 7"/>
+            <path d="M28 10 L28 7 L24 7"/>
+            <path d="M4 34 L4 37 L8 37"/>
+            <path d="M28 34 L28 37 L24 37"/>
+            <animate attributeName="opacity" values=".25;1;.25" dur="1.8s" repeatCount="indefinite"/>
+          </g>
+          <!-- flash indicator -->
+          <rect x="15" y="10" width="6" height="4" rx="1" fill="#ffd166">
+            <animate attributeName="opacity" values="0;1;0" dur="1.8s" repeatCount="indefinite"/>
+          </rect>
+          <!-- IR LEDs -->
+          <circle cx="41" cy="15" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" repeatCount="indefinite"/></circle>
+          <circle cx="41" cy="33" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".5s" repeatCount="indefinite"/></circle>
+          <!-- status LED flashing red on capture -->
+          <circle cx="12" cy="24" r="2" fill="#ff4d2e">
+            <animate attributeName="opacity" values="0;0;0;1;0" dur="1.8s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <div class="s-n">Paso 03</div>
+      </div>
+      <h3 class="s-name">Captura de Evidencia</h3><div class="s-div"></div>
+      <p class="s-desc">Al detectar la infracción, la IA activa automáticamente la cámara para tomar una screenshot del momento exacto, con sello de hora, fecha e ID de la cámara.</p>
+      <div class="s-stat">↑ Evidencia visual irrefutable</div>
+    </div>
+    <div class="step" data-n="04">
+      <div class="s-top">
+        <!-- Step 04: security cam + wifi/signal upload arcs -->
+        <svg width="52" height="42" viewBox="0 0 52 42" xmlns="http://www.w3.org/2000/svg">
+          <!-- mount -->
+          <rect x="22" y="2" width="6" height="10" rx="2" fill="#052238" stroke="#0d6abf" stroke-width="1"/>
+          <!-- pivot -->
+          <circle cx="25" cy="14" r="3.5" fill="#041526" stroke="#00d4ff" stroke-width="1"/>
+          <!-- body -->
+          <rect x="8" y="18" width="30" height="12" rx="4" fill="#052238" stroke="#0d6abf" stroke-width="1.5"/>
+          <!-- lens housing -->
+          <circle cx="41" cy="24" r="9" fill="#010d1a" stroke="#1490ff" stroke-width="1.5"/>
+          <circle cx="41" cy="24" r="3.5" fill="#031828" stroke="#00d4ff" stroke-width="1"/>
+          <circle cx="41" cy="24" r="1.8" fill="#00d4ff"/>
+          <!-- upload / wifi arcs above body -->
+          <path d="M 7 16 Q 15 6 23 16" stroke="#00d4ff" stroke-width="1.5" fill="none" stroke-linecap="round">
+            <animate attributeName="opacity" values=".15;1;.15" dur="1.6s" repeatCount="indefinite"/>
+          </path>
+          <path d="M 10 17 Q 16 10 22 17" stroke="#00d4ff" stroke-width="1.2" fill="none" stroke-linecap="round">
+            <animate attributeName="opacity" values=".15;.8;.15" dur="1.6s" begin=".35s" repeatCount="indefinite"/>
+          </path>
+          <circle cx="15" cy="18" r="1.5" fill="#00d4ff">
+            <animate attributeName="opacity" values=".3;1;.3" dur="1.6s" repeatCount="indefinite"/>
+          </circle>
+          <!-- IR LEDs -->
+          <circle cx="41" cy="15" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" repeatCount="indefinite"/></circle>
+          <circle cx="41" cy="33" r="1.5" fill="#aa1800"><animate attributeName="opacity" values=".2;.9;.2" dur="1.4s" begin=".5s" repeatCount="indefinite"/></circle>
+          <!-- status LED green = uploaded -->
+          <circle cx="12" cy="24" r="2" fill="#00ff9d"><animate attributeName="opacity" values=".4;1;.4" dur="1.2s" repeatCount="indefinite"/></circle>
+        </svg>
+        <div class="s-n">Paso 04</div>
+      </div>
+      <h3 class="s-name">Base de Datos Segura</h3><div class="s-div"></div>
+      <p class="s-desc">La captura se sube de forma cifrada a la nube junto con los metadatos (cámara ID, hora, fecha y ubicación), disponible para consulta y análisis por parte de las autoridades del centro.</p>
+      <div class="s-stat">↑ Almacenamiento cifrado en Supabase</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ════ TECH ════ -->
+<section id="tech"><div class="cnt"><div class="tech-grid">
+  <div class="cam-dash r">
+    <div class="dh">
+      <div class="dd"><div class="dd-dot dd-r"></div><div class="dd-dot dd-y"></div><div class="dd-dot dd-g"></div></div>
+      <span class="dt">Panel EcoView — Capturas en tiempo real</span>
+      <div class="dlv"><div class="dlv-d"></div>EN VIVO</div>
+    </div>
+    <div class="cfg">
+      <div class="cf">
+        <div class="cf-sl" style="--d:3.5s;--dl:0s"></div>
+        <div class="cf-ck tl"></div><div class="cf-ck tr"></div><div class="cf-ck bl"></div><div class="cf-ck br"></div>
+        <div class="cf-lbl">CAM-01 // AV. CENTRAL</div>
+        <div class="cf-ts" id="ts1">00:00:00</div>
+        <div class="cf-db" style="width:50px;height:44px;top:38%;left:24%;--d:4.5s;--dl:.5s">
+          <div class="cf-dl">BASURA DETECTADA</div>
+        </div>
+      </div>
+      <div class="cf" style="background:rgba(1,13,26,.6)">
+        <div class="cf-sl" style="--d:4.5s;--dl:1.5s"></div>
+        <div class="cf-ck tl"></div><div class="cf-ck tr"></div><div class="cf-ck bl"></div><div class="cf-ck br"></div>
+        <div class="cf-lbl">CAM-07 // CALLE METRO</div>
+        <div class="cf-ts" id="ts2">00:00:00</div>
+        <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.06" preserveAspectRatio="none">
+          <defs><pattern id="gp" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0L0 0 0 20" fill="none" stroke="#00d4ff" stroke-width=".5"/></pattern></defs>
+          <rect width="100%" height="100%" fill="url(#gp)"/>
+        </svg>
+      </div>
+      <div class="cf" style="background:rgba(2,18,34,.9)">
+        <div class="cf-ck tl"></div><div class="cf-ck tr"></div><div class="cf-ck bl"></div><div class="cf-ck br"></div>
+        <div class="cf-lbl">MAPA SECTORIAL // ZONA-A</div>
+        <svg style="position:absolute;inset:0;width:100%;height:100%" viewBox="0 0 200 160">
+          <g stroke="rgba(0,212,255,0.05)" stroke-width="1"><line x1="0" y1="40" x2="200" y2="40"/><line x1="0" y1="80" x2="200" y2="80"/><line x1="0" y1="120" x2="200" y2="120"/><line x1="50" y1="0" x2="50" y2="160"/><line x1="100" y1="0" x2="100" y2="160"/><line x1="150" y1="0" x2="150" y2="160"/></g>
+          <circle cx="60" cy="50" r="4" fill="#00d4ff" opacity=".75"><animate attributeName="r" values="3;6;3" dur="2s" repeatCount="indefinite"/></circle>
+          <circle cx="140" cy="68" r="4" fill="#00d4ff" opacity=".75"><animate attributeName="r" values="3;6;3" dur="2s" begin=".7s" repeatCount="indefinite"/></circle>
+          <circle cx="90" cy="120" r="4" fill="#00d4ff" opacity=".75"><animate attributeName="r" values="3;6;3" dur="2s" begin="1.4s" repeatCount="indefinite"/></circle>
+          <circle cx="158" cy="128" r="4" fill="#ff4d2e" opacity=".9"><animate attributeName="r" values="3;8;3" dur="1.5s" repeatCount="indefinite"/></circle>
+          <line x1="60" y1="50" x2="158" y2="128" stroke="rgba(255,77,46,.18)" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="162" y="130" font-size="8" fill="#ff4d2e" font-family="monospace">ALERTA</text>
+        </svg>
+      </div>
+      <div class="cf" style="background:rgba(1,13,26,.7);padding:10px">
+        <div class="cf-ck tl"></div><div class="cf-ck tr"></div><div class="cf-ck bl"></div><div class="cf-ck br"></div>
+        <div class="cf-lbl">INCIDENTES // 24H</div>
+        <div id="chartB" style="position:absolute;bottom:10px;left:10px;right:10px;height:65%;display:flex;align-items:flex-end;gap:2px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="slbl r">Tecnología Central</div>
+    <h2 class="stitle r">Construido sobre<br><em>Visión por Computadora</em><br>e IA Especializada</h2>
+    <div class="tf-list">
+      <div class="tfi r"><div class="ti-ic">🔬</div><div class="ti-txt"><h4>Módulo de Reconocimiento Visual (IA)</h4><p>Red neuronal entrenada específicamente para identificar el patrón de movimiento asociado al acto de arrojar basura y reconocer más de 200 tipos de objetos clasificados como desechos.</p></div></div>
+      <div class="tfi r d1"><div class="ti-ic">📸</div><div class="ti-txt"><h4>Captura Automatizada de Evidencia</h4><p>Al detectar una coincidencia positiva, la IA activa un disparador lógico que ordena capturar una screenshot en tiempo real, generando una prueba visual irrefutable del evento.</p></div></div>
+      <div class="tfi r d2"><div class="ti-ic">⚙️</div><div class="ti-txt"><h4>Procesamiento de Metadatos</h4><p>Por cada captura se genera automáticamente una etiqueta que incluye el ID de la cámara, la fecha y la hora exacta del evento para rastreo preciso y análisis estadístico.</p></div></div>
+      <div class="tfi r d3"><div class="ti-ic">🔐</div><div class="ti-txt"><h4>Infraestructura Segura y Ética</h4><p>No se almacenan datos biométricos. El acceso a evidencias está restringido a autoridades designadas. Las imágenes se retienen solo el tiempo necesario — privacidad y cumplimiento normativo garantizados.</p></div></div>
+    </div>
+  </div>
+</div></div></section>
+
+<!-- ════ CASES ════ -->
+<section id="cases"><div class="cnt">
+  <div class="slbl r">Segmento de Mercado</div>
+  <h2 class="stitle r">Dónde <em>EcoView</em><br>Marca la Diferencia</h2>
+  <div class="cg r">
+    <div class="ci"><div class="ci-n">01</div><div class="ci-c"><h3>Centros Educativos (Piloto)</h3><p>Escuelas, politécnicos y universidades: el 40% de los encuestados señaló las instituciones educativas como el lugar prioritario para implementar EcoView primero. Campus del CEFODIPF en La Vega.</p><span class="ci-tag">Mercado Principal</span></div></div>
+    <div class="ci"><div class="ci-n">02</div><div class="ci-c"><h3>Empresas Privadas</h3><p>Zonas industriales, plazas comerciales y supermercados que buscan cumplimiento ambiental interno y respaldo visual automatizado para reducir conflictos disciplinarios.</p><span class="ci-tag">Mercado Secundario</span></div></div>
+    <div class="ci"><div class="ci-n">03</div><div class="ci-c"><h3>Residenciales y Condominios</h3><p>Administraciones residenciales cerradas que desean un control de limpieza transparente sin depender del factor humano ni de vigilancia costosa 24/7.</p><span class="ci-tag">Particulares</span></div></div>
+    <div class="ci"><div class="ci-n">04</div><div class="ci-c"><h3>Parques y Espacios Públicos</h3><p>El 20% de los encuestados apoyó los parques como segundo sitio prioritario. EcoView reemplaza campañas de concientización con evidencia concreta y control automatizado.</p><span class="ci-tag">Expansión</span></div></div>
+    <div class="ci"><div class="ci-n">05</div><div class="ci-c"><h3>Calles Principales y Avenidas</h3><p>Zonas de alto tráfico donde el 80% de los encuestados afirma ver basura arrojada de forma frecuente. EcoView genera los datos objetivos que las autoridades necesitan para actuar.</p><span class="ci-tag">Infraestructura</span></div></div>
+    <div class="ci"><div class="ci-n">06</div><div class="ci-c"><h3>Expansión Nacional</h3><p>Tras el éxito del prototipo en La Vega, el plan estratégico contempla escalar el servicio a otras provincias del país, aprovechando la arquitectura cloud de Supabase.</p><span class="ci-tag">Visión Futura</span></div></div>
+  </div>
+</div></section>
+
+<!-- ════ IMPACT ════ -->
+<section id="impact"><div class="cnt" style="text-align:center">
+  <div class="slbl r" style="justify-content:center">Estudio de Mercado · La Vega, R.D.</div>
+  <h2 class="stitle r" style="margin-bottom:0">Cifras Reales.<br><em>Respaldo Real.</em></h2>
+  <div class="imp-wrap r">
+    <div class="ir ir1" style="--d:16s"><div class="ird" style="background:var(--neon);color:var(--neon)"></div></div>
+    <div class="ir ir2" style="--d:22s"><div class="ird" style="background:var(--warn);color:var(--warn)"></div></div>
+    <div class="ir ir3" style="--d:11s"><div class="ird" style="background:var(--gold);color:var(--gold)"></div></div>
+    <div class="imp-nums">
+      <div class="in-cell"><div class="in-n">80%</div><div class="in-l">Apoyaría EcoView</div></div>
+      <div class="in-cell"><div class="in-n">80%</div><div class="in-l">Han visto basura frecuente</div></div>
+      <div class="in-cell"><div class="in-n">60%</div><div class="in-l">Creen que IA reduce basura</div></div>
+      <div class="in-cell"><div class="in-n">60%</div><div class="in-l">Se sentirían más responsables</div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ════ CTA ════ -->
+<section id="cta">
+  <div class="cb tl"></div><div class="cb tr"></div><div class="cb bl"></div><div class="cb br"></div>
+  <div class="cnt">
+    <div class="ce r">Sistema de vigilancia ambiental escolar · La Vega, R.D.</div>
+    <h2 class="ct r">¿Listo para implementar<br><em>EcoView</em>?</h2>
+    <p class="cs r">Agenda una demostración en vivo y descubre cómo EcoView puede transformar la limpieza y disciplina ambiental de tu institución educativa o empresa.</p>
+    <div class="cform r">
+      <input type="email" class="cinp" placeholder="TU@CORREO.COM">
+      <a href="#" class="bp">Solicitar Demo →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ════ HORIZONTE ESTRATÉGICO ════ -->
+<section id="horizonte"><div class="cnt">
+  <div class="slbl r" style="justify-content:center">Horizonte Estratégico</div>
+  <h2 class="stitle r" style="text-align:center;margin-bottom:56px">Nuestra <em>Misión,</em><br>Visión y Valores</h2>
+  <div class="hz-grid r">
+    <div class="hz-card">
+      <div class="hz-icon">🎯</div>
+      <div class="hz-label">Misión</div>
+      <div class="hz-title">Impulsar la Cultura de Limpieza</div>
+      <p class="hz-body">Impulsar la cultura de limpieza en las escuelas mediante el uso de Inteligencia Artificial, automatizando la detección de desechos para garantizar un entorno educativo sano y tecnológico.</p>
+    </div>
+    <div class="hz-card">
+      <div class="hz-icon">🔭</div>
+      <div class="hz-label">Visión</div>
+      <div class="hz-title">Liderar la Vigilancia Ambiental Escolar</div>
+      <p class="hz-body">Ser el sistema líder de vigilancia ambiental escolar, transformando cada campus en un espacio inteligente donde la tecnología y la conciencia ecológica convivan para proteger el medio ambiente.</p>
+    </div>
+    <div class="hz-card">
+      <div class="hz-icon">⚡</div>
+      <div class="hz-label">Valores</div>
+      <div class="hz-title">Principios que nos Guían</div>
+      <div class="val-grid">
+        <div class="val-item">Innovación: IA avanzada para resolver problemas cotidianos</div>
+        <div class="val-item">Responsabilidad: compromiso individual con el entorno</div>
+        <div class="val-item">Integridad: precisión y veracidad en cada captura</div>
+        <div class="val-item">Sustentabilidad: bienestar del planeta desde la escuela</div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ════ FOOTER ════ -->
+<footer>
+  <div class="fl">ECOVIEW</div>
+  <div class="fc">© 2026 EcoView S.R.L. — Av. Monseñor Panal #70, La Vega, R.D. · CEFODIPF · 6to Pitágoras</div>
+  <div class="flinks"><a href="#">Privacidad</a><a href="#">Términos</a><a href="#">Misión</a><a href="#live">En Vivo</a></div>
+</footer>
+
+<script>
+/* CURSOR */
+const cur=document.getElementById('cur'),cr=document.getElementById('cur-ring'),ch=document.getElementById('cur-h'),cv=document.getElementById('cur-v');
+let mx=0,my=0,ox=0,oy=0;
+document.addEventListener('mousemove',e=>{
+  mx=e.clientX;my=e.clientY;
+  cur.style.left=mx+'px';cur.style.top=my+'px';
+  ch.style.left=mx+'px';ch.style.top=my+'px';
+  cv.style.left=mx+'px';cv.style.top=my+'px';
+});
+(function a(){ox+=(mx-ox)*.11;oy+=(my-oy)*.11;cr.style.left=ox+'px';cr.style.top=oy+'px';requestAnimationFrame(a)})();
+
+/* CANVAS STARFIELD — optimizado con coordenadas dentro del viewport */
+const c=document.getElementById('bgC'),ctx=c.getContext('2d');
+let W,H,stars=[];
+function rs(){
+  W=c.width=innerWidth;H=c.height=innerHeight;
+  // Re-clamp stars inside new viewport
+  stars.forEach(s=>{if(s.x>W)s.x=Math.random()*W;if(s.y>H)s.y=Math.random()*H;});
+}
+rs();window.addEventListener('resize',rs);
+// Inicializar estrellas dentro del viewport actual
+for(let i=0;i<120;i++)stars.push({
+  x:Math.random()*innerWidth,
+  y:Math.random()*innerHeight,
+  r:Math.random()*.7+.2,
+  vx:(Math.random()-.5)*.05,
+  vy:(Math.random()-.5)*.05,
+  o:Math.random()*.3+.07
+});
+(function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='rgba(0,212,255,0.022)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  stars.forEach(s=>{
+    s.x+=s.vx;s.y+=s.vy;
+    if(s.x<0)s.x=W;if(s.x>W)s.x=0;if(s.y<0)s.y=H;if(s.y>H)s.y=0;
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(0,212,255,${s.o})`;ctx.fill();
+  });
+  requestAnimationFrame(draw);
+})();
+
+/* PRELOADER */
+window.addEventListener('load',()=>setTimeout(()=>document.getElementById('pl').classList.add('out'),2500));
+
+/* CLOCK */
+function tick(){
+  const t=new Date().toUTCString().split(' ')[4]+' UTC';
+  const e=document.getElementById('heroTime');if(e)e.textContent=t;
+  const tf=new Date().toTimeString().split(' ')[0];
+  ['ts1','ts2'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=tf;});
+}
+setInterval(tick,1000);tick();
+
+/* CHART */
+const cb=document.getElementById('chartB');
+if(cb){
+  const vs=[4,7,5,9,6,11,8,13,10,11,7,9,15,10,8,12,10,15,11,9,13,10,8,7];
+  const mx2=Math.max(...vs);
+  vs.forEach(v=>{
+    const b=document.createElement('div');
+    b.style.cssText=`flex:1;height:${v/mx2*85}%;background:${v>11?'rgba(255,77,46,.45)':'rgba(0,212,255,.18)'};border-radius:1px 1px 0 0;transition:height .5s;`;
+    cb.appendChild(b);
+  });
+  setInterval(()=>{
+    cb.querySelectorAll('div').forEach(b=>{
+      const h=Math.random()*72+12;
+      b.style.height=h+'%';b.style.background=h>58?'rgba(255,77,46,.45)':'rgba(0,212,255,.18)';
+    });
+  },2800);
+}
+
+/* REVEAL */
+const ro=new IntersectionObserver(e=>e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('in');}),{threshold:.08});
+document.querySelectorAll('.r').forEach(el=>ro.observe(el));
+
+/* COUNTER ANIMATION — anima los .counter cuando entran en viewport */
+function animateCounter(el){
+  const target=parseFloat(el.dataset.t);
+  const isFloat=target%1!==0;
+  const duration=1800;
+  const start=performance.now();
+  (function step(now){
+    const progress=Math.min((now-start)/duration,1);
+    // easeOutExpo
+    const ease=progress===1?1:1-Math.pow(2,-10*progress);
+    const val=target*ease;
+    el.textContent=isFloat?val.toFixed(1):Math.floor(val);
+    if(progress<1)requestAnimationFrame(step);
+    else el.textContent=isFloat?target.toFixed(1):target;
+  })(start);
+}
+const cro=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      animateCounter(e.target);
+      cro.unobserve(e.target);
+    }
+  });
+},{threshold:.3});
+document.querySelectorAll('.counter').forEach(el=>cro.observe(el));
+
+/* HAMBURGER MENU */
+const hamBtn=document.getElementById('hamBtn');
+const mobMenu=document.getElementById('mobMenu');
+if(hamBtn&&mobMenu){
+  hamBtn.addEventListener('click',()=>{
+    const open=mobMenu.classList.toggle('open');
+    hamBtn.classList.toggle('open',open);
+    hamBtn.setAttribute('aria-expanded',open);
+  });
+  // Cerrar al hacer click en un enlace
+  mobMenu.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{
+    mobMenu.classList.remove('open');
+    hamBtn.classList.remove('open');
+    hamBtn.setAttribute('aria-expanded','false');
+  }));
+}
+
+/* CTA FORM — feedback visual al solicitar demo */
+(function(){
+  const form=document.querySelector('.cform');
+  const inp=form&&form.querySelector('.cinp');
+  const btn=form&&form.querySelector('.bp');
+  if(!form||!inp||!btn)return;
+  btn.addEventListener('click',e=>{
+    e.preventDefault();
+    const email=inp.value.trim();
+    const valid=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if(!valid){
+      inp.style.borderColor='rgba(255,77,46,.6)';
+      inp.style.boxShadow='0 0 14px rgba(255,77,46,.15)';
+      inp.placeholder='INGRESA UN CORREO VÁLIDO';
+      setTimeout(()=>{
+        inp.style.borderColor='';inp.style.boxShadow='';inp.placeholder='TU@CORREO.COM';
+      },2500);
+      return;
+    }
+    btn.textContent='✓ SOLICITUD ENVIADA';
+    btn.style.background='linear-gradient(135deg,var(--cobalt),var(--green) 250%)';
+    btn.style.pointerEvents='none';
+    inp.disabled=true;
+    inp.value='';
+    inp.placeholder='¡TE CONTACTAREMOS PRONTO!';
+  });
+})();
+</script>
+
+<!-- ════ SUPABASE LIVE FEED ════ -->
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const SUPABASE_URL  = 'https://myrmzbgcciyigeazrmfx.supabase.co'
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15cm16YmdjY2l5aWdlYXpybWZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDAzNzUsImV4cCI6MjA5MDIxNjM3NX0.hKD6QzUOfBG25q-juiW5KPLQFNKMuvZASK_2gf4JjYg'
+const BUCKET_NAME   = 'capturas'
+const FREQ_MS       = 3000
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+let lastFileName = null
+let updateCount  = 0
+
+/* ─── helpers ─── */
+function $(id){ return document.getElementById(id) }
+
+function setStatus(state, text){
+  // state: 'ok' | 'err' | 'wait'
+  const dot   = $('liveConnDot')
+  const label = $('liveStatusLabel')
+  const msg   = $('liveStatusText')
+  const colors = { ok:'var(--green)', err:'var(--warn)', wait:'var(--gold)' }
+  if(dot){
+    dot.className = 'live-conn-dot' + (state === 'wait' ? ' wait' : state === 'err' ? ' err' : '')
+    dot.style.background  = colors[state]
+    dot.style.boxShadow   = `0 0 8px ${colors[state]}`
+  }
+  if(label){
+    const lbl = state === 'ok' ? 'EN VIVO' : state === 'err' ? 'ERROR' : 'CONECTANDO'
+    label.innerHTML = `<div class="dlv-d"></div>${lbl}`
+  }
+  if(msg) msg.textContent = text
+}
+
+/* ─── poll ─── */
+async function buscarUltimaImagen(){
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from(BUCKET_NAME)
+      .list('', { limit: 1, sortBy: { column: 'created_at', order: 'desc' } })
+
+    if(error) throw error
+
+    if(data && data.length > 0){
+      const f = data[0]
+      setStatus('ok', 'Conectado — recibiendo capturas')
+
+      const lastEl = $('liveLastFile')
+      if(lastEl) lastEl.textContent = f.name.length > 20
+        ? f.name.substring(0, 18) + '…'
+        : f.name
+
+      if(f.name !== lastFileName){
+        lastFileName = f.name
+        updateCount++
+        const cEl = $('liveCount')
+        if(cEl) cEl.textContent = updateCount
+        mostrarImagen(f.name)
+      }
+    } else {
+      setStatus('ok', 'Conectado — sin capturas aún')
+      const log = $('liveLog')
+      if(log) log.textContent = 'Sin capturas en el bucket aún...'
+    }
+  } catch(err){
+    console.error('EcoView live:', err)
+    setStatus('err', 'Error de conexión con Supabase')
+  }
+}
+
+/* ─── mostrar imagen ─── */
+function mostrarImagen(fileName){
+  const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName)
+  const img         = $('liveImg')
+  const placeholder = $('livePlaceholder')
+  const filenameEl  = $('liveFilename')
+
+  if(!img) return
+  if(filenameEl) filenameEl.textContent = fileName
+
+  // Reset para transición suave
+  img.style.opacity = '0'
+
+  img.onload = () => {
+    if(placeholder) placeholder.style.display = 'none'
+    img.style.display = 'block'
+    // pequeño delay para que la transición sea visible
+    requestAnimationFrame(() => { img.style.opacity = '1' })
+  }
+
+  img.onerror = () => {
+    setStatus('err', 'No se pudo cargar la imagen')
+    if(placeholder){
+      placeholder.style.display = 'flex'
+      const log = $('liveLog')
+      if(log) log.textContent = 'Error al cargar la imagen'
+    }
+  }
+
+  // añadir timestamp para evitar caché del navegador
+  img.src = data.publicUrl + '?nocache=' + Date.now()
+}
+
+/* ─── reloj interno de la sección ─── */
+setInterval(() => {
+  const el = $('liveClock')
+  if(el) el.textContent = new Date().toTimeString().split(' ')[0]
+}, 1000)
+
+/* ─── inicio ─── */
+buscarUltimaImagen()
+setInterval(buscarUltimaImagen, FREQ_MS)
+</script>
 </body>
 </html>
